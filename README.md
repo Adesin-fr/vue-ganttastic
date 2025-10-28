@@ -20,6 +20,9 @@
 - **Interactivity** _(dynamic, movable and pushable bars)_
 - **Reactivity / Responsiveness** (_when changes occur, bars are repositioned accordingly_)
 - **Customization options** (_chart/bar styling, slots, event handlers etc._)
+- **🆕 Zoom & Pan** _(mouse wheel to zoom in/out, Ctrl+wheel to pan, drag to navigate)_
+- **🆕 Automatic Precision** _(time axis automatically adjusts detail level based on zoom)_
+- **🆕 Date Object Support** _(accepts both Date objects and formatted strings)_
 
 Using Vue 2? Check out [Vue-Ganttastic v1](https://github.com/zunnzunn/vue-ganttastic/tree/vue-ganttastic-v1).
 
@@ -61,6 +64,11 @@ This will globally register the components g-gantt-chart and g-gantt-row and you
   >
     <g-gantt-row label="My row 1" :bars="row1BarList" />
     <g-gantt-row label="My row 2" :bars="row2BarList" />
+
+    <!-- Alternatively, you can use g-gantt-bar components directly inside g-gantt-row -->
+    <g-gantt-row label="My row 3">
+      <g-gantt-bar :bar="singleBar" />
+    </g-gantt-row>
   </g-gantt-chart>
 </template>
 
@@ -71,33 +79,143 @@ This will globally register the components g-gantt-chart and g-gantt-row and you
     {
       myBeginDate: "2021-07-13 13:00",
       myEndDate: "2021-07-13 19:00",
-      ganttBarConfig: {
-        // each bar must have a nested ganttBarConfig object ...
-        id: "unique-id-1", // ... and a unique "id" property
-        label: "Lorem ipsum dolor"
-      }
+      id: "unique-id-1", // each bar must have a unique "id" property
+      label: "Lorem ipsum dolor"
     }
   ])
   const row2BarList = ref([
     {
       myBeginDate: "2021-07-13 00:00",
       myEndDate: "2021-07-14 02:00",
-      ganttBarConfig: {
-        id: "another-unique-id-2",
-        hasHandles: true,
-        label: "Hey, look at me",
-        style: {
-          // arbitrary CSS styling for your bar
-          background: "#e09b69",
-          borderRadius: "20px",
-          color: "black"
-        },
-        class: "foo" // you can also add CSS classes to your bars!
-      }
+      // ganttBarConfig object is not needed anymore : id and label are now picked directly on objects...
+      id: "another-unique-id-2",
+      hasHandles: true,
+      label: "Hey, look at me",
+      style: {
+        // arbitrary CSS styling for your bar
+        background: "#e09b69",
+        borderRadius: "20px",
+        color: "black"
+      },
+      class: "foo" // you can also add CSS classes to your bars!
     }
   ])
+
+  const singleBar = ref({
+    myBeginDate: "2021-07-13 10:00",
+    myEndDate: "2021-07-13 15:00",
+    id: "unique-id-3",
+    label: "Direct bar usage"
+  })
 </script>
 ```
+
+## New Features
+
+### ✨ Simplified Bar Configuration
+
+**Important:** The `ganttBarConfig` object is no longer needed! You can now define bar properties directly on the bar object:
+
+```js
+// ✅ New simplified format (recommended)
+const bars = ref([
+  {
+    myBeginDate: "2021-07-13 13:00",
+    myEndDate: "2021-07-13 19:00",
+    id: "unique-id-1",
+    label: "My task",
+    hasHandles: true,
+    style: { background: "#e09b69" },
+    class: "my-custom-class"
+  }
+])
+
+// ❌ Old format (deprecated, but still supported)
+const bars = ref([
+  {
+    myBeginDate: "2021-07-13 13:00",
+    myEndDate: "2021-07-13 19:00",
+    ganttBarConfig: {
+      id: "unique-id-1",
+      label: "My task",
+      // ...
+    }
+  }
+])
+```
+
+Properties like `id`, `label`, `hasHandles`, `style`, `class`, `html`, `bundle`, and `immobile` can all be set directly on the bar object.
+
+### 🎯 Zoom & Pan
+
+Navigate through your Gantt chart intuitively with both mouse and touch controls:
+
+#### Desktop (Mouse & Trackpad)
+- **Zoom In/Out**: Use the mouse wheel to zoom in (show less time) or zoom out (show more time)
+  - Zooming is centered on your mouse cursor position
+  - Supports 20x zoom out (0.05x) to 10x zoom in
+
+- **Pan with Ctrl+Wheel**: Hold `Ctrl` (or `Cmd` on Mac) and scroll to move through time horizontally
+
+- **Drag to Pan**: Click and drag on empty areas of the chart (timeaxis, background) to pan
+  - The cursor changes to a grab hand when you can drag
+  - Bar dragging remains fully functional - drag functionality is context-aware
+
+#### Mobile & Touch Devices
+- **Pinch to Zoom**: Use two fingers to pinch in (zoom out) or pinch out (zoom in)
+  - Works just like zooming on maps
+  - Simultaneous panning while pinching is supported
+
+- **Two-Finger Pan**: Drag with two fingers to pan horizontally through the timeline
+
+- **Single-Finger Pan**: Drag with one finger on empty areas to pan through time
+  - Bar dragging on touch devices remains fully functional
+
+### 🔄 Automatic Precision Switching
+
+The time axis automatically adjusts its granularity based on the visible time range:
+
+- **< 1 day visible**: Shows **hourly** precision
+- **1-60 days visible**: Shows **daily** precision
+- **60-365 days visible**: Shows **weekly** precision
+- **> 365 days visible**: Shows **monthly** precision
+
+This provides the optimal level of detail at any zoom level, similar to how maps adjust labels when zooming.
+
+### 📅 Date Object Support
+
+The `chartStart` and `chartEnd` props now accept both Date objects and formatted strings:
+
+```js
+// Using Date objects (recommended for dynamic dates)
+const chartStart = new Date('2024-01-01')
+const chartEnd = new Date('2024-12-31')
+
+// Or using formatted strings (as before)
+const chartStart = '01.01.2024 00:00'
+const chartEnd = '31.12.2024 23:59'
+```
+
+The component automatically detects the type and handles conversions internally. All zoom, pan, and date range calculations work seamlessly with both formats.
+
+### 📊 Flexible Bar Usage
+
+You can now use bars in two ways:
+
+1. **Via `:bars` prop** (original method):
+```html
+<g-gantt-row label="My row" :bars="barList" />
+```
+
+2. **Directly as child components** (new method):
+```html
+<g-gantt-row label="My row">
+  <g-gantt-bar :bar="bar1" />
+  <g-gantt-bar :bar="bar2" />
+</g-gantt-row>
+```
+
+Both methods work identically and can even be mixed within the same chart.
 
 ## Contributing
 

@@ -22,7 +22,7 @@ export default function createBarDrag(
   const { toDayjs } = useDayjsHelper(config)
 
   const initDrag = (e: MouseEvent) => {
-    const barElement = document.getElementById(bar.ganttBarConfig.id)
+    const barElement = document.getElementById(bar.id)
     if (!barElement) {
       return
     }
@@ -47,7 +47,7 @@ export default function createBarDrag(
   }
 
   const getBarElements = () => {
-    const barElement = document.getElementById(bar.ganttBarConfig.id)
+    const barElement = document.getElementById(bar.id)
     const barContainer = barElement?.closest(".g-gantt-row-bars-container")?.getBoundingClientRect()
     return { barElement, barContainer }
   }
@@ -103,8 +103,8 @@ export default function createBarDrag(
     if (!pushOnOverlap.value) {
       return false
     }
-    const dragLimitLeft = bar.ganttBarConfig.dragLimitLeft
-    const dragLimitRight = bar.ganttBarConfig.dragLimitRight
+    const dragLimitLeft = bar.dragLimitLeft
+    const dragLimitRight = bar.dragLimitRight
 
     return (
       (xStart && dragLimitLeft != null && xStart < dragLimitLeft) ||

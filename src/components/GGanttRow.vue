@@ -19,9 +19,12 @@
     </div>
     <div ref="barContainer" class="g-gantt-row-bars-container" v-bind="$attrs">
       <transition-group name="bar-transition" tag="div">
-        <g-gantt-bar v-for="bar in bars" :key="bar.ganttBarConfig.id" :bar="bar">
-          <slot name="bar-label" :bar="bar" />
-        </g-gantt-bar>
+        <template v-if="bars">
+          <g-gantt-bar v-for="bar in bars" :key="bar.id" :bar="bar">
+            <slot name="bar-label" :bar="bar" />
+          </g-gantt-bar>
+        </template>
+        <slot />
       </transition-group>
     </div>
   </div>
@@ -38,7 +41,7 @@ import { BAR_CONTAINER_KEY } from "../provider/symbols"
 
 const props = defineProps<{
   label: string
-  bars: GanttBarObject[]
+  bars?: GanttBarObject[]
   highlightOnHover?: boolean
 }>()
 
@@ -74,9 +77,8 @@ const onDrop = (e: MouseEvent) => {
 }
 
 const isBlank = (str: string) => {
-  return (!str || /^\s*$/.test(str))
+  return !str || /^\s*$/.test(str)
 }
-
 </script>
 
 <style>

@@ -1,9 +1,9 @@
 <template>
   <div
-    :id="barConfig.id"
-    :class="['g-gantt-bar', barConfig.class || '']"
+    :id="bar.id"
+    :class="['g-gantt-bar', bar.class || '']"
     :style="{
-      ...barConfig.style,
+      ...bar.style,
       position: 'absolute',
       top: `${rowHeight * 0.1}px`,
       left: `${xStart}px`,
@@ -21,12 +21,12 @@
     <div class="g-gantt-bar-label">
       <slot :bar="bar">
         <div>
-          {{ barConfig.label || "" }}
+          {{ bar.label || "" }}
         </div>
-        <div v-if="barConfig.html" v-html="barConfig.html"/>
+        <div v-if="bar.html" v-html="bar.html" />
       </slot>
     </div>
-    <template v-if="barConfig.hasHandles">
+    <template v-if="bar.hasHandles">
       <div class="g-gantt-bar-handle-left" />
       <div class="g-gantt-bar-handle-right" />
     </template>
@@ -39,13 +39,12 @@ import { computed, ref, toRefs, watch, onMounted, inject } from "vue"
 import useBarDragManagement from "../composables/useBarDragManagement.js"
 import useTimePositionMapping from "../composables/useTimePositionMapping.js"
 import useBarDragLimit from "../composables/useBarDragLimit.js"
-import type { GanttBarObject } from "../types"
 import provideEmitBarEvent from "../provider/provideEmitBarEvent.js"
 import provideConfig from "../provider/provideConfig.js"
 import { BAR_CONTAINER_KEY } from "../provider/symbols"
 
 const props = defineProps<{
-  bar: GanttBarObject
+  bar: any
 }>()
 const emitBarEvent = provideEmitBarEvent()
 const config = provideConfig()
@@ -58,16 +57,14 @@ const { setDragLimitsOfGanttBar } = useBarDragLimit()
 
 const isDragging = ref(false)
 
-const barConfig = computed(() => bar.value.ganttBarConfig)
-
 function firstMousemoveCallback(e: MouseEvent) {
-  barConfig.value.bundle != null ? initDragOfBundle(bar.value, e) : initDragOfBar(bar.value, e)
+  props.bar.bundle != null ? initDragOfBundle(bar.value, e) : initDragOfBar(bar.value, e)
   isDragging.value = true
 }
 
 const prepareForDrag = () => {
   setDragLimitsOfGanttBar(bar.value)
-  if (barConfig.value.immobile) {
+  if (props.bar.immobile) {
     return
   }
 

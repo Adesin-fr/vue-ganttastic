@@ -24,13 +24,13 @@ export default function useBarDragManagement() {
   }
 
   const initDragOfBundle = (mainBar: GanttBarObject, e: MouseEvent) => {
-    const bundle = mainBar.ganttBarConfig.bundle
+    const bundle = mainBar.bundle
     if (bundle == null) {
       return
     }
     getChartRows().forEach((row) => {
       row.bars.forEach((bar) => {
-        if (bar.ganttBarConfig.bundle === bundle) {
+        if (bar.bundle === bundle) {
           const dragEndHandler = bar === mainBar ? onEndDrag : () => null
           const { initDrag } = createBarDrag(bar, onDrag, dragEndHandler, config)
           initDrag(e)
@@ -124,12 +124,12 @@ export default function useBarDragManagement() {
     direction: "left" | "right"
   ) => {
     addBarToMovedBars(pushedBar)
-    if (!pushedBar.ganttBarConfig.bundle) {
+    if (!pushedBar.bundle) {
       return
     }
     getChartRows().forEach((row) => {
       row.bars.forEach((bar) => {
-        if (bar.ganttBarConfig.bundle === pushedBar.ganttBarConfig.bundle && bar !== pushedBar) {
+        if (bar.bundle === pushedBar.bundle && bar !== pushedBar) {
           addBarToMovedBars(bar)
           moveBarByMinutes(bar, minutes, direction)
         }

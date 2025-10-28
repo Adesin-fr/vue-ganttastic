@@ -13,6 +13,7 @@ import type { ColorScheme } from "./color-schemes"
 
 import GGanttChart from "./components/GGanttChart.vue"
 import GGanttRow from "./components/GGanttRow.vue"
+import GGanttBar from "./components/GGanttBar.vue"
 
 export function extendDayjs() {
   dayjs.extend(isSameOrBefore)
@@ -25,13 +26,14 @@ export function extendDayjs() {
 }
 
 export type { ColorScheme, GanttBarObject }
-export { GGanttChart, GGanttRow }
+export { GGanttChart, GGanttRow, GGanttBar }
 
 export const ganttastic: Plugin = {
   install(app, options?) {
     extendDayjs()
     app.component("GGanttChart", GGanttChart)
     app.component("GGanttRow", GGanttRow)
+    app.component("GGanttBar", GGanttBar)
   }
 }
 

@@ -51,7 +51,7 @@ watch(
   async () => {
     await nextTick()
 
-    const barId = bar?.value?.ganttBarConfig.id || ""
+    const barId = bar?.value?.id || ""
     if (!barId) {
       return
     }
@@ -68,7 +68,7 @@ watch(
   { deep: true, immediate: true }
 )
 
-const dotColor = computed(() => bar?.value?.ganttBarConfig.style?.background || DEFAULT_DOT_COLOR)
+const dotColor = computed(() => bar?.value?.style?.background || DEFAULT_DOT_COLOR)
 
 const { toDayjs } = useDayjsHelper()
 

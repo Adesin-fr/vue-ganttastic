@@ -1,12 +1,7 @@
 <template>
   <div>
     <div :class="[{ 'labels-in-column': !!labelColumnTitle }]">
-      <g-gantt-label-column
-        v-if="labelColumnTitle"
-        :style="{
-          width: labelColumnWidth
-        }"
-      >
+      <g-gantt-label-column v-if="labelColumnTitle" :style="{ width: labelColumnWidth }">
         <template #label-column-title>
           <slot name="label-column-title" />
         </template>
@@ -16,7 +11,7 @@
       </g-gantt-label-column>
       <div
         ref="ganttChart"
-        :class="['g-gantt-chart', { 'with-column': labelColumnTitle }]"
+        :class="['g-gantt-chart', { 'with-column': labelColumnTitle, 'is-dragging': isChartDragging }]"
         :style="{ width, background: colors.background, fontFamily: font }"
       >
         <g-gantt-timeaxis v-if="!hideTimeaxis">
@@ -56,6 +51,8 @@ import {
   ref,
   toRefs,
   useSlots,
+  onMounted,
+  onUnmounted,
   type ComputedRef,
   type Ref,
   type ToRefs
@@ -79,6 +76,7 @@ import {
   EMIT_BAR_EVENT_KEY,
   type ChartRow
 } from "../provider/symbols.js"
+import dayjs from "dayjs"
 
 export interface GGanttChartProps {
   chartStart: string | Date
@@ -254,9 +252,300 @@ const emitBarEvent = (
 const ganttChart = ref<HTMLElement | null>(null)
 const chartSize = useElementSize(ganttChart)
 
+// Zoom and scroll state
+const zoomLevel = ref(1)
+const minZoom = 0.05  // Allow zooming out to 5% (20x zoom out)
+const maxZoom = 10
+
+// Chart drag/pan state
+const isChartDragging = ref(false)
+const dragStartX = ref(0)
+const dragStartOffset = ref(0)
+
+// Touch gesture state
+const lastTouchDistance = ref(0)
+const lastTouchCenter = ref(0)
+const isTouching = ref(false)
+
+// Convert props to dayjs for calculations
+const originalChartStart = computed(() => {
+  const format = props.dateFormat || DEFAULT_DATE_FORMAT
+  if (props.chartStart instanceof Date) {
+    return dayjs(props.chartStart)
+  }
+  return typeof format === 'string' ? dayjs(props.chartStart, format, true) : dayjs(props.chartStart)
+})
+
+const originalChartEnd = computed(() => {
+  const format = props.dateFormat || DEFAULT_DATE_FORMAT
+  if (props.chartEnd instanceof Date) {
+    return dayjs(props.chartEnd)
+  }
+  return typeof format === 'string' ? dayjs(props.chartEnd, format, true) : dayjs(props.chartEnd)
+})
+
+const totalDuration = computed(() => originalChartEnd.value.diff(originalChartStart.value, 'minute'))
+
+// Date range offset for panning (in minutes from the original start)
+// Can be negative to allow panning before the original start
+const dateRangeOffset = ref(0)
+
+// Calculate the visible date range based on zoom level and offset
+const visibleDuration = computed(() => totalDuration.value / zoomLevel.value)
+
+const adjustedChartStart = computed(() => {
+  // Allow start to go before the original start when zoomed out
+  return originalChartStart.value.add(dateRangeOffset.value, 'minute')
+})
+
+const adjustedChartEnd = computed(() => {
+  // Allow end to go past the original end when zoomed out
+  return adjustedChartStart.value.add(visibleDuration.value, 'minute')
+})
+
+// Auto-adjust precision based on visible time range
+const effectivePrecision = computed(() => {
+  // Calculate visible duration in days using visibleDuration (which is stable)
+  const visibleDays = visibleDuration.value / (24 * 60)
+
+  // More granular precision levels for smoother transitions
+  if (visibleDays < 1) {
+    return 'hour'
+  } else if (visibleDays < 60) {
+    return 'day'
+  } else if (visibleDays < 365) {
+    return 'week'
+  } else {
+    return 'month'
+  }
+})
+
+// Handle wheel events for zoom and scroll
+const handleWheel = (e: WheelEvent) => {
+  if (e.ctrlKey || e.metaKey) {
+    // Ctrl+wheel: horizontal scroll (pan through time)
+    e.preventDefault()
+    const scrollSpeed = visibleDuration.value * 0.02 // 2% of visible duration per scroll (reduced from 5%)
+    const deltaMinutes = e.deltaY > 0 ? scrollSpeed : -scrollSpeed
+
+    // Update offset without clamping - allow panning anywhere
+    dateRangeOffset.value += deltaMinutes
+  } else {
+    // Regular wheel: zoom in/out
+    e.preventDefault()
+    const delta = e.deltaY > 0 ? -0.05 : 0.05 // Reduced from 0.1 to 0.05 for less sensitive zoom
+    const newZoom = Math.max(minZoom, Math.min(maxZoom, zoomLevel.value + delta))
+
+    // Calculate the mouse position as a ratio of the visible range
+    const container = ganttChart.value
+    if (container) {
+      const rect = container.getBoundingClientRect()
+      const mouseX = e.clientX - rect.left + container.scrollLeft
+      const mouseRatio = mouseX / (chartSize.width.value || 1)
+
+      // Calculate the time at the mouse position
+      const timeAtMouse = adjustedChartStart.value.add(mouseRatio * visibleDuration.value, 'minute')
+
+      // Update zoom
+      zoomLevel.value = newZoom
+
+      // Adjust offset to keep the time at mouse position stable
+      // No clamping - allow zooming out beyond original range
+      const newVisibleDuration = totalDuration.value / newZoom
+      const minutesFromOriginalStart = timeAtMouse.diff(originalChartStart.value, 'minute')
+      const newOffset = minutesFromOriginalStart - (mouseRatio * newVisibleDuration)
+      dateRangeOffset.value = newOffset
+    }
+  }
+}
+
+// Handle mouse drag for panning
+const handleMouseDown = (e: MouseEvent) => {
+  // Only start drag on left mouse button
+  if (e.button !== 0) return
+
+  // Check if the click is on a bar element or its children
+  const target = e.target as HTMLElement
+  if (target.closest('.g-gantt-bar')) {
+    // Don't start chart dragging if clicking on a bar
+    return
+  }
+
+  isChartDragging.value = true
+  dragStartX.value = e.clientX
+  dragStartOffset.value = dateRangeOffset.value
+
+  // Prevent text selection while dragging
+  e.preventDefault()
+}
+
+const handleMouseMove = (e: MouseEvent) => {
+  if (!isChartDragging.value) return
+
+  const container = ganttChart.value
+  if (!container) return
+
+  // Calculate how many pixels were dragged
+  const deltaX = e.clientX - dragStartX.value
+
+  // Convert pixels to time (minutes)
+  const pixelsPerMinute = (chartSize.width.value || 1) / visibleDuration.value
+  const deltaMinutes = -deltaX / pixelsPerMinute // Negative because dragging right should show earlier dates
+
+  // Update the offset
+  dateRangeOffset.value = dragStartOffset.value + deltaMinutes
+}
+
+const handleMouseUp = () => {
+  isChartDragging.value = false
+}
+
+const handleMouseLeave = () => {
+  // Stop dragging if mouse leaves the chart
+  isChartDragging.value = false
+}
+
+// Touch gesture handlers
+const getTouchDistance = (touches: TouchList) => {
+  const dx = touches[0].clientX - touches[1].clientX
+  const dy = touches[0].clientY - touches[1].clientY
+  return Math.sqrt(dx * dx + dy * dy)
+}
+
+const getTouchCenter = (touches: TouchList) => {
+  return (touches[0].clientX + touches[1].clientX) / 2
+}
+
+const handleTouchStart = (e: TouchEvent) => {
+  const target = e.target as HTMLElement
+  if (target.closest('.g-gantt-bar')) {
+    return // Don't handle touch on bars
+  }
+
+  if (e.touches.length === 2) {
+    // Two-finger gesture
+    e.preventDefault()
+    isTouching.value = true
+    lastTouchDistance.value = getTouchDistance(e.touches)
+    lastTouchCenter.value = getTouchCenter(e.touches)
+    dragStartOffset.value = dateRangeOffset.value
+  } else if (e.touches.length === 1) {
+    // Single finger drag
+    isTouching.value = true
+    dragStartX.value = e.touches[0].clientX
+    dragStartOffset.value = dateRangeOffset.value
+  }
+}
+
+const handleTouchMove = (e: TouchEvent) => {
+  if (!isTouching.value) return
+
+  if (e.touches.length === 2) {
+    // Pinch to zoom and two-finger pan
+    e.preventDefault()
+
+    const currentDistance = getTouchDistance(e.touches)
+    const currentCenter = getTouchCenter(e.touches)
+
+    // Calculate zoom change from pinch
+    const distanceRatio = currentDistance / lastTouchDistance.value
+    const zoomChange = (distanceRatio - 1) * 0.5 // Sensitivity factor
+    const newZoom = Math.max(minZoom, Math.min(maxZoom, zoomLevel.value * (1 + zoomChange)))
+
+    // Calculate pan from two-finger movement
+    const centerDelta = currentCenter - lastTouchCenter.value
+    const pixelsPerMinute = (chartSize.width.value || 1) / visibleDuration.value
+    const panMinutes = -centerDelta / pixelsPerMinute
+
+    // Apply zoom
+    zoomLevel.value = newZoom
+
+    // Apply pan
+    dateRangeOffset.value = dragStartOffset.value + panMinutes
+
+    // Update for next move
+    lastTouchDistance.value = currentDistance
+    lastTouchCenter.value = currentCenter
+    dragStartOffset.value = dateRangeOffset.value
+  } else if (e.touches.length === 1) {
+    // Single finger pan
+    e.preventDefault()
+
+    const deltaX = e.touches[0].clientX - dragStartX.value
+    const pixelsPerMinute = (chartSize.width.value || 1) / visibleDuration.value
+    const deltaMinutes = -deltaX / pixelsPerMinute
+
+    dateRangeOffset.value = dragStartOffset.value + deltaMinutes
+  }
+}
+
+const handleTouchEnd = () => {
+  isTouching.value = false
+}
+
+onMounted(() => {
+  const container = ganttChart.value
+  if (container) {
+    // Mouse events
+    container.addEventListener("wheel", handleWheel, { passive: false })
+    container.addEventListener("mousedown", handleMouseDown)
+    container.addEventListener("mousemove", handleMouseMove)
+    container.addEventListener("mouseup", handleMouseUp)
+    container.addEventListener("mouseleave", handleMouseLeave)
+
+    // Touch events
+    container.addEventListener("touchstart", handleTouchStart, { passive: false })
+    container.addEventListener("touchmove", handleTouchMove, { passive: false })
+    container.addEventListener("touchend", handleTouchEnd)
+    container.addEventListener("touchcancel", handleTouchEnd)
+  }
+})
+
+onUnmounted(() => {
+  const container = ganttChart.value
+  if (container) {
+    // Mouse events
+    container.removeEventListener("wheel", handleWheel)
+    container.removeEventListener("mousedown", handleMouseDown)
+    container.removeEventListener("mousemove", handleMouseMove)
+    container.removeEventListener("mouseup", handleMouseUp)
+    container.removeEventListener("mouseleave", handleMouseLeave)
+
+    // Touch events
+    container.removeEventListener("touchstart", handleTouchStart)
+    container.removeEventListener("touchmove", handleTouchMove)
+    container.removeEventListener("touchend", handleTouchEnd)
+    container.removeEventListener("touchcancel", handleTouchEnd)
+  }
+})
+
+// Format the adjusted dates to match the expected type (always as strings or Date based on input type)
+const formattedChartStart = computed(() => {
+  // If the original was a Date object, return Date object
+  if (props.chartStart instanceof Date) {
+    return adjustedChartStart.value.toDate()
+  }
+  // Otherwise format as string using the dateFormat
+  const format = props.dateFormat || DEFAULT_DATE_FORMAT
+  return typeof format === 'string' ? adjustedChartStart.value.format(format) : adjustedChartStart.value.toDate()
+})
+
+const formattedChartEnd = computed(() => {
+  // If the original was a Date object, return Date object
+  if (props.chartEnd instanceof Date) {
+    return adjustedChartEnd.value.toDate()
+  }
+  // Otherwise format as string using the dateFormat
+  const format = props.dateFormat || DEFAULT_DATE_FORMAT
+  return typeof format === 'string' ? adjustedChartEnd.value.format(format) : adjustedChartEnd.value.toDate()
+})
+
 provide(CHART_ROWS_KEY, getChartRows)
 provide(CONFIG_KEY, {
   ...toRefs(props),
+  precision: effectivePrecision,  // Override precision with auto-calculated value
+  chartStart: formattedChartStart,
+  chartEnd: formattedChartEnd,
   colors,
   chartSize
 })
@@ -273,6 +562,11 @@ provide(EMIT_BAR_EVENT_KEY, emitBarEvent)
   user-select: none;
   font-variant-numeric: tabular-nums;
   border-radius: 5px;
+  cursor: grab;
+}
+
+.g-gantt-chart.is-dragging {
+  cursor: grabbing;
 }
 
 .with-column {
