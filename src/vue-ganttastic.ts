@@ -15,6 +15,11 @@ import GGanttChart from "./components/GGanttChart.vue"
 import GGanttRow from "./components/GGanttRow.vue"
 import GGanttBar from "./components/GGanttBar.vue"
 
+// Export des composants avec leur nom explicite pour la résolution
+GGanttChart.name = "GGanttChart"
+GGanttRow.name = "GGanttRow"
+GGanttBar.name = "GGanttBar"
+
 export function extendDayjs() {
   dayjs.extend(isSameOrBefore)
   dayjs.extend(isSameOrAfter)
