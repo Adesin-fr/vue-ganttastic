@@ -149,6 +149,8 @@ const emit = defineEmits<{
     e: "contextmenu-bar",
     value: { bar: GanttBarObject; e: MouseEvent; datetime?: string | Date }
   ): void
+  (e: "click-chart", value: { e: MouseEvent; datetime?: string | Date }): void
+  (e: "dblclick-chart", value: { e: MouseEvent; datetime?: string | Date }): void
 }>()
 
 const { width, font, colorScheme } = toRefs(props)
@@ -205,6 +207,10 @@ const clearTooltip = () => {
   showTooltip.value = false
 }
 
+// Bar click delay state for distinguishing single vs double click
+let barClickTimeoutId: ReturnType<typeof setTimeout> | null = null
+const barClickDelay = 250 // milliseconds
+
 const emitBarEvent = (
   e: MouseEvent,
   bar: GanttBarObject,
@@ -213,7 +219,15 @@ const emitBarEvent = (
 ) => {
   switch (e.type) {
     case "click":
-      emit("click-bar", { bar, e, datetime })
+      // Clear any existing timeout
+      if (barClickTimeoutId) {
+        clearTimeout(barClickTimeoutId)
+      }
+      // Delay the click event to wait for a potential double-click
+      barClickTimeoutId = setTimeout(() => {
+        emit("click-bar", { bar, e, datetime })
+        barClickTimeoutId = null
+      }, barClickDelay)
       break
     case "mousedown":
       emit("mousedown-bar", { bar, e, datetime })
@@ -222,6 +236,11 @@ const emitBarEvent = (
       emit("mouseup-bar", { bar, e, datetime })
       break
     case "dblclick":
+      // Cancel the pending click event
+      if (barClickTimeoutId) {
+        clearTimeout(barClickTimeoutId)
+        barClickTimeoutId = null
+      }
       emit("dblclick-bar", { bar, e, datetime })
       break
     case "mouseenter":
@@ -261,6 +280,11 @@ const maxZoom = 10
 const isChartDragging = ref(false)
 const dragStartX = ref(0)
 const dragStartOffset = ref(0)
+const hasMouseMoved = ref(false)
+
+// Click delay state for distinguishing single vs double click
+let clickTimeoutId: ReturnType<typeof setTimeout> | null = null
+const clickDelay = 250 // milliseconds
 
 // Touch gesture state
 const lastTouchDistance = ref(0)
@@ -359,6 +383,75 @@ const handleWheel = (e: WheelEvent) => {
   }
 }
 
+// Handle chart click and dblclick
+const handleChartClick = (e: MouseEvent) => {
+  const target = e.target as HTMLElement
+  if (target.closest('.g-gantt-bar')) {
+    // Don't emit chart click if clicking on a bar
+    return
+  }
+
+  // Only emit click if mouse didn't move (not a drag)
+  if (hasMouseMoved.value) {
+    return
+  }
+
+  // Clear any existing timeout
+  if (clickTimeoutId) {
+    clearTimeout(clickTimeoutId)
+  }
+
+  // Delay the click event to wait for a potential double-click
+  clickTimeoutId = setTimeout(() => {
+    const container = ganttChart.value
+    if (!container) return
+
+    const rect = container.getBoundingClientRect()
+    const xPos = e.clientX - rect.left
+    const pixelsPerMinute = (chartSize.width.value || 1) / visibleDuration.value
+    const minutesFromStart = xPos / pixelsPerMinute
+    const datetime = adjustedChartStart.value.add(minutesFromStart, 'minute')
+
+    // Return date in same format as original props
+    const formattedDatetime = props.chartStart instanceof Date
+      ? datetime.toDate()
+      : datetime.format(props.dateFormat || DEFAULT_DATE_FORMAT)
+
+    emit("click-chart", { e, datetime: formattedDatetime })
+    clickTimeoutId = null
+  }, clickDelay)
+}
+
+const handleChartDblClick = (e: MouseEvent) => {
+  const target = e.target as HTMLElement
+  if (target.closest('.g-gantt-bar')) {
+    // Don't emit chart dblclick if clicking on a bar
+    return
+  }
+
+  // Cancel the pending click event
+  if (clickTimeoutId) {
+    clearTimeout(clickTimeoutId)
+    clickTimeoutId = null
+  }
+
+  const container = ganttChart.value
+  if (!container) return
+
+  const rect = container.getBoundingClientRect()
+  const xPos = e.clientX - rect.left
+  const pixelsPerMinute = (chartSize.width.value || 1) / visibleDuration.value
+  const minutesFromStart = xPos / pixelsPerMinute
+  const datetime = adjustedChartStart.value.add(minutesFromStart, 'minute')
+
+  // Return date in same format as original props
+  const formattedDatetime = props.chartStart instanceof Date
+    ? datetime.toDate()
+    : datetime.format(props.dateFormat || DEFAULT_DATE_FORMAT)
+
+  emit("dblclick-chart", { e, datetime: formattedDatetime })
+}
+
 // Handle mouse drag for panning
 const handleMouseDown = (e: MouseEvent) => {
   // Only start drag on left mouse button
@@ -372,6 +465,7 @@ const handleMouseDown = (e: MouseEvent) => {
   }
 
   isChartDragging.value = true
+  hasMouseMoved.value = false
   dragStartX.value = e.clientX
   dragStartOffset.value = dateRangeOffset.value
 
@@ -387,6 +481,11 @@ const handleMouseMove = (e: MouseEvent) => {
 
   // Calculate how many pixels were dragged
   const deltaX = e.clientX - dragStartX.value
+
+  // Mark that mouse has moved (for distinguishing click from drag)
+  if (Math.abs(deltaX) > 3) {
+    hasMouseMoved.value = true
+  }
 
   // Convert pixels to time (minutes)
   const pixelsPerMinute = (chartSize.width.value || 1) / visibleDuration.value
@@ -492,6 +591,8 @@ onMounted(() => {
     container.addEventListener("mousemove", handleMouseMove)
     container.addEventListener("mouseup", handleMouseUp)
     container.addEventListener("mouseleave", handleMouseLeave)
+    container.addEventListener("click", handleChartClick)
+    container.addEventListener("dblclick", handleChartDblClick)
 
     // Touch events
     container.addEventListener("touchstart", handleTouchStart, { passive: false })
@@ -502,6 +603,16 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  // Clear any pending click timeouts
+  if (clickTimeoutId) {
+    clearTimeout(clickTimeoutId)
+    clickTimeoutId = null
+  }
+  if (barClickTimeoutId) {
+    clearTimeout(barClickTimeoutId)
+    barClickTimeoutId = null
+  }
+
   const container = ganttChart.value
   if (container) {
     // Mouse events
@@ -510,6 +621,8 @@ onUnmounted(() => {
     container.removeEventListener("mousemove", handleMouseMove)
     container.removeEventListener("mouseup", handleMouseUp)
     container.removeEventListener("mouseleave", handleMouseLeave)
+    container.removeEventListener("click", handleChartClick)
+    container.removeEventListener("dblclick", handleChartDblClick)
 
     // Touch events
     container.removeEventListener("touchstart", handleTouchStart)

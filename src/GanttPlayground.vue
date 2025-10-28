@@ -11,14 +11,16 @@
     bar-end="endDate"
     :date-format="format"
     @click-bar="onClickBar($event.bar, $event.e, $event.datetime)"
+    @dblclick-bar="onDblClickBar($event.bar, $event.e, $event.datetime)"
     @mousedown-bar="onMousedownBar($event.bar, $event.e, $event.datetime)"
-    @dblclick-bar="onMouseupBar($event.bar, $event.e, $event.datetime)"
     @mouseenter-bar="onMouseenterBar($event.bar, $event.e)"
     @mouseleave-bar="onMouseleaveBar($event.bar, $event.e)"
     @dragstart-bar="onDragstartBar($event.bar, $event.e)"
     @drag-bar="onDragBar($event.bar, $event.e)"
     @dragend-bar="onDragendBar($event.bar, $event.e, $event.movedBars)"
     @contextmenu-bar="onContextmenuBar($event.bar, $event.e, $event.datetime)"
+    @click-chart="onClickChart($event.e, $event.datetime)"
+    @dblclick-chart="onDblclickChart($event.e, $event.datetime)"
   >
     <g-gantt-row label="My row to test" :bars="bars1" highlight-on-hover />
     <g-gantt-row label="My another new row to test" highlight-on-hover>
@@ -183,6 +185,10 @@ const onClickBar = (bar: GanttBarObject, e: MouseEvent, datetime?: string) => {
   console.log("click-bar", bar, e, datetime)
 }
 
+const onDblClickBar = (bar: GanttBarObject, e: MouseEvent, datetime?: string) => {
+  console.log("Dblclick-bar", bar, e, datetime)
+}
+
 const onMousedownBar = (bar: GanttBarObject, e: MouseEvent, datetime?: string) => {
   console.log("mousedown-bar", bar, e, datetime)
 }
@@ -217,5 +223,13 @@ const onDragendBar = (
 
 const onContextmenuBar = (bar: GanttBarObject, e: MouseEvent, datetime?: string) => {
   console.log("contextmenu-bar", bar, e, datetime)
+}
+
+const onClickChart = (e: MouseEvent, datetime?: string | Date) => {
+  console.log("click-chart", e, datetime)
+}
+
+const onDblclickChart = (e: MouseEvent, datetime?: string | Date) => {
+  console.log("dblclick-chart", e, datetime)
 }
 </script>

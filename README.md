@@ -217,6 +217,59 @@ You can now use bars in two ways:
 
 Both methods work identically and can even be mixed within the same chart.
 
+### 🖱️ Click and Double-Click Events
+
+The Gantt chart now supports both single-click and double-click events on bars and the chart background, with intelligent event handling to prevent conflicts:
+
+#### Chart Events
+
+```html
+<g-gantt-chart
+  @click-chart="onChartClick"
+  @dblclick-chart="onChartDblClick"
+>
+  <!-- ... -->
+</g-gantt-chart>
+```
+
+```js
+const onChartClick = ({ e, datetime }) => {
+  console.log('Clicked at:', datetime)
+  // datetime is the date/time at the click position
+}
+
+const onChartDblClick = ({ e, datetime }) => {
+  console.log('Double-clicked at:', datetime)
+}
+```
+
+#### Bar Events
+
+```html
+<g-gantt-chart
+  @click-bar="onBarClick"
+  @dblclick-bar="onBarDblClick"
+>
+  <!-- ... -->
+</g-gantt-chart>
+```
+
+```js
+const onBarClick = ({ bar, e, datetime }) => {
+  console.log('Clicked bar:', bar.id)
+}
+
+const onBarDblClick = ({ bar, e, datetime }) => {
+  console.log('Double-clicked bar:', bar.id)
+}
+```
+
+**Smart Event Handling:**
+- Single-click events are delayed by 250ms to wait for a potential double-click
+- If a double-click occurs, only the double-click event fires (single-click is cancelled)
+- This prevents both events from firing on a double-click action
+- The `datetime` parameter provides the exact date/time at the click position
+
 ## Contributing
 
 Clone the project, make some changes, test your changes out, create a pull request with a short summary of what changes you made. Contributing is warmly welcomed!
