@@ -42,7 +42,6 @@
     </g-gantt-row>
   </g-gantt-chart>
 
-  <button type="button" @click="addBar()">Add bar</button>
   <button type="button" @click="deleteBar()">Delete bar</button>
 </template>
 
@@ -57,11 +56,16 @@ const chartEnd = dayjs(chartStart, format).add(3, "days").format(format)
 
 const bars1 = ref([
   {
-    beginDate: dayjs().hour(13).startOf("hour").toDate(),
-    endDate: dayjs().hour(19).startOf("hour").toDate(),
+    beginDate: dayjs().hour(13).startOf("hour").format(format),
+    endDate: dayjs().hour(19).startOf("hour").format(format),
     id: "8621987329",
     label: "I'm in a bundle",
-    bundle: "bundle2"
+    bundle: "bundle2",
+    hasHandles: false,
+    style: {
+      background: "",
+      borderRadius: ""
+    }
   }
 ])
 
@@ -154,25 +158,6 @@ const singleBar = ref({
     fontSize: "14px"
   }
 })
-
-const addBar = () => {
-  if (bars1.value.some((bar) => bar.id === "test1")) {
-    return
-  }
-  const bar = {
-    beginDate: dayjs().add(1, "day").hour(4).startOf("hour").format(format),
-    endDate: dayjs().add(2, "day").hour(4).startOf("hour").format(format),
-
-    id: "test1",
-    hasHandles: true,
-    label: "Hello!",
-    style: {
-      background: "#5484b7",
-      borderRadius: "20px"
-    }
-  }
-  bars1.value.push(bar)
-}
 
 const deleteBar = () => {
   const idx = bars1.value.findIndex((b) => b.id === "test1")
