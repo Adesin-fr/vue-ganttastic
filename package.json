@@ -1,6 +1,6 @@
 {
   "name": "@adesin-fr/vue-ganttastic",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "description": "A simple and customizable Gantt chart component for Vue.js",
   "author": "Ludovic LEMARINEL (@adesin-fr) / Marko Zunic (@zunnzunn)",
   "scripts": {
@@ -68,7 +68,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/zunnzunn/vue-ganttastic"
+    "url": "https://github.com/adesin-fr/vue-ganttastic"
   },
   "dependencies": {
     "@vueuse/core": "^9.1.1"
